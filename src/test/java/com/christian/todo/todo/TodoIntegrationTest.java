@@ -1,18 +1,18 @@
 package com.christian.todo.todo;
 
-import com.example.todos.dto.TodoRequest;
-import com.example.todos.repository.TodoRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.christian.todo.dto.TodoRequest;
+import com.christian.todo.repository.TodoRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -31,7 +31,8 @@ class TodoIntegrationTest {
     @Autowired
     private TodoRepository todoRepository;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    // Jackson 3's JsonMapper handles LocalDateTime natively, no extra module needed.
+    private final JsonMapper objectMapper = JsonMapper.builder().build();
 
     @AfterEach
     void cleanUp() {
@@ -48,7 +49,7 @@ class TodoIntegrationTest {
     @Test
     void shouldCreateTodoViaPutThenFetchItById() throws Exception {
         TodoRequest request = new TodoRequest();
-        request.setId("11111111-1111-1111-1111-111111111111");
+        request.setId(UUID.fromString("11111111-1111-1111-1111-111111111111"));
         request.setTitle("Buy milk");
         request.setDescription("2 liters, semi-skimmed");
         request.setCompleted(false);
@@ -58,7 +59,7 @@ class TodoIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(request.getId())))
+                .andExpect(jsonPath("$.id", is(request.getId().toString())))
                 .andExpect(jsonPath("$.title", is("Buy milk")))
                 .andExpect(jsonPath("$.completed", is(false)));
 
@@ -69,7 +70,12 @@ class TodoIntegrationTest {
 
     @Test
     void shouldReturn404WhenTodoDoesNotExist() throws Exception {
-        mockMvc.perform(get("/todos/{id}", "does-not-exist"))
+        // Must be a syntactically valid UUID that simply doesn't exist,
+        // otherwise Spring rejects the path variable conversion with a 400
+        // before the controller/service ever gets to raise a 404.
+        UUID unknownId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+
+        mockMvc.perform(get("/todos/{id}", unknownId))
                 .andExpect(status().isNotFound());
     }
 
@@ -89,7 +95,7 @@ class TodoIntegrationTest {
     @Test
     void shouldReturn400WhenTitleIsBlank() throws Exception {
         TodoRequest request = new TodoRequest();
-        request.setId("44444444-4444-4444-4444-444444444444");
+        request.setId(UUID.fromString("44444444-4444-4444-4444-444444444444"));
         request.setTitle("   ");
         request.setCreatedAt(LocalDateTime.now());
 
@@ -102,13 +108,13 @@ class TodoIntegrationTest {
     @Test
     void shouldFilterTodosByCompletedStatus() throws Exception {
         TodoRequest done = new TodoRequest();
-        done.setId("22222222-2222-2222-2222-222222222222");
+        done.setId(UUID.fromString("22222222-2222-2222-2222-222222222222"));
         done.setTitle("Done task");
         done.setCompleted(true);
         done.setCreatedAt(LocalDateTime.now());
 
         TodoRequest pending = new TodoRequest();
-        pending.setId("33333333-3333-3333-3333-333333333333");
+        pending.setId(UUID.fromString("33333333-3333-3333-3333-333333333333"));
         pending.setTitle("Pending task");
         pending.setCompleted(false);
         pending.setCreatedAt(LocalDateTime.now());

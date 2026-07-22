@@ -1,12 +1,10 @@
 package com.christian.todo.todo;
 
-import com.example.todos.dto.TodoRequest;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.christian.todo.dto.TodoRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,8 +12,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -53,12 +53,13 @@ class TodoContainerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    // Jackson 3's JsonMapper handles LocalDateTime natively, no extra module needed.
+    private final JsonMapper objectMapper = JsonMapper.builder().build();
 
     @Test
     void shouldCreateAndRetrieveTodoAgainstRealPostgres() throws Exception {
         TodoRequest request = new TodoRequest();
-        request.setId("99999999-9999-9999-9999-999999999999");
+        request.setId(UUID.fromString("99999999-9999-9999-9999-999999999999"));
         request.setTitle("Integration test against real Postgres");
         request.setDescription("Runs inside a Docker container via Testcontainers");
         request.setCompleted(false);
@@ -68,7 +69,7 @@ class TodoContainerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(request.getId())));
+                .andExpect(jsonPath("$.id", is(request.getId().toString())));
 
         mockMvc.perform(get("/todos/{id}", request.getId()))
                 .andExpect(status().isOk())
